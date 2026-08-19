@@ -7,7 +7,10 @@ import { FaqModal } from './components/FaqModal';
 import { PrivacyModal } from './components/PrivacyModal';
 import { SeoContent } from './components/SeoContent';
 import { CompressionOverlay } from './components/CompressionOverlay';
+import { Toast, ToastType } from './components/Toast';
 import { UploadCloud, CheckCircle2, ShieldCheck, Zap, Download, RefreshCw, X, WifiOff, Lock, BrainCircuit, Heart, ArrowLeft } from 'lucide-react';
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB limit to prevent browser crash
 import { formatBytes } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { PDFDocument } from 'pdf-lib';
@@ -32,9 +35,28 @@ export default function App() {
   const [isComplete, setIsComplete] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [toast, setToast] = useState<{message: string, type: ToastType} | null>(null);
   
   const handleFilesDropped = (droppedFiles: File[]) => {
-    const newFiles: FileItem[] = droppedFiles.map((file) => ({
+    let hasOversized = false;
+    const validFiles = droppedFiles.filter(file => {
+      if (file.size > MAX_FILE_SIZE) {
+        hasOversized = true;
+        return false;
+      }
+      return true;
+    });
+
+    if (hasOversized) {
+      setToast({
+        message: "One or more files exceeded the 50MB limit and were skipped to prevent a browser crash.",
+        type: "error"
+      });
+    }
+
+    if (validFiles.length === 0) return;
+
+    const newFiles: FileItem[] = validFiles.map((file) => ({
       id: Math.random().toString(36).substring(7) + '_' + file.name,
       file,
       name: file.name,
@@ -241,7 +263,10 @@ export default function App() {
       setIsComplete(true);
     } catch (error) {
       console.error(error);
-      alert('An unexpected error occurred during compression.');
+      setToast({
+        message: 'An unexpected error occurred during compression. File may be corrupted.',
+        type: 'error'
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -568,6 +593,16 @@ export default function App() {
       <FaqModal isOpen={showFaqModal} onClose={() => setShowFaqModal(false)} />
       <PrivacyModal isOpen={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
       <CompressionOverlay isProcessing={isProcessing} />
+
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="mt-auto py-6 border-t border-slate-800/60 bg-[#0F1219]/80 backdrop-blur-md">
